@@ -33,12 +33,22 @@ class FormField(Vertical):
         height: auto;
         margin-bottom: 1;
     }
-    FormField > Label {
-        margin-bottom: 0;
+    FormField > .komado-field-label {
+        text-style: bold;
+        color: $foreground 90%;
+        padding: 0 1;
+    }
+    FormField.-invalid > Input {
+        border: tall $error;
     }
     FormField > .komado-field-error {
-        color: $text-error;
+        display: none;
         height: auto;
+        color: $text-error;
+        padding: 0 1;
+    }
+    FormField.-invalid > .komado-field-error {
+        display: block;
     }
     """
 
@@ -69,8 +79,8 @@ class FormField(Vertical):
         self._error = Static("", classes="komado-field-error")
 
     def compose(self) -> ComposeResult:
-        suffix = "(必須)" if self.required else ""
-        yield Label(f"{self.label_text}{suffix}")
+        marker = " [$text-error]*[/]" if self.required else ""
+        yield Label(f"{self.label_text}{marker}", classes="komado-field-label")
         yield self._input
         yield self._error
 
@@ -144,9 +154,19 @@ class Form(Vertical):
         padding: 1 2;
     }
     Form > .komado-form-error {
-        color: $text-error;
+        display: none;
         height: auto;
+        color: $text-error;
+        background: $error 12%;
+        border-left: thick $error;
+        padding: 0 1;
         margin-bottom: 1;
+    }
+    Form.-has-error > .komado-form-error {
+        display: block;
+    }
+    Form > #komado-form-submit {
+        margin-top: 1;
     }
     """
 
@@ -213,6 +233,7 @@ class Form(Vertical):
     def _set_form_error(self, message: str) -> None:
         self._form_error_text = message
         self._form_error.update(message)
+        self.set_class(bool(message), "-has-error")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button is self._submit:
