@@ -16,6 +16,8 @@ from textual.validation import Validator
 from textual.widget import Widget
 from textual.widgets import Button, Input, Label, Static
 
+from . import motion
+
 CrossRule = Callable[[dict[str, str]], str | None]
 """フォーム全体を見るルール。値の辞書を受け取り、問題があればメッセージを返す。"""
 
@@ -62,9 +64,11 @@ class FormField(Vertical):
         placeholder: str = "",
         initial: str = "",
         password: bool = False,
+        motion: bool = True,
         id: str | None = None,
     ) -> None:
         super().__init__(id=id)
+        self.komado_motion = motion
         self.field_name = name
         self.label_text = label
         self.required = required
@@ -100,9 +104,12 @@ class FormField(Vertical):
     def validate_now(self) -> str | None:
         """検証を実行し、最初の失敗メッセージを返して表示も更新する。"""
         message = self._first_failure()
+        was_clear = self._error_text == ""
         self._error_text = message or ""
         self._error.update(self._error_text)
         self.set_class(message is not None, "-invalid")
+        if message is not None and was_clear and motion.motion_allowed(self):
+            motion.reveal(self._error)
         return message
 
     def focus_input(self) -> None:
@@ -183,11 +190,13 @@ class Form(Vertical):
         *children: Widget,
         rules: list[CrossRule] | None = None,
         submit_label: str = "送信",
+        motion: bool = True,
         id: str | None = None,
     ) -> None:
         super().__init__(*children)
         if id is not None:
             self.id = id
+        self.komado_motion = motion
         self._rules = rules or []
         self._form_error_text = ""
         self._form_error = Static("", classes="komado-form-error")
@@ -196,6 +205,9 @@ class Form(Vertical):
     def compose(self) -> ComposeResult:
         yield self._form_error
         yield self._submit
+
+    def on_mount(self) -> None:
+        motion.reveal_sequence(self.fields, gate=self)
 
     @property
     def fields(self) -> list[FormField]:
