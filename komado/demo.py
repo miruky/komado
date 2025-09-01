@@ -9,7 +9,7 @@ from textual.containers import VerticalScroll
 from textual.validation import Integer, Regex
 from textual.widgets import Footer, Header, Static, TabbedContent, TabPane
 
-from .form import Form, FormField
+from .form import Form, FormField, SelectField, SwitchField
 from .sheet import Sheet
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -62,6 +62,8 @@ class DemoApp(App):
                             )
                         ],
                     ),
+                    SelectField("プラン", "plan", ["無料", "有料", "法人"], required=True),
+                    SwitchField("メール通知を受け取る", "notify", value=True),
                     FormField("パスワード", "password", required=True, password=True),
                     FormField("パスワード(確認)", "confirm", required=True, password=True),
                     rules=[_passwords_match],
@@ -82,12 +84,21 @@ class DemoApp(App):
                 ["光熱費", "9800", "8200", "7600"],
                 ["合計", "=SUM(B2:B4)", "=SUM(C2:C4)", "=SUM(D2:D4)"],
                 ["平均", "=AVERAGE(B2:B4)", "=AVERAGE(C2:C4)", "=AVERAGE(D2:D4)"],
+                ["予算内", "=IF(B5<=130000,1,0)", "=IF(C5<=130000,1,0)", "=IF(D5<=130000,1,0)"],
             ]
         )
+        # Sheet が mount 時にグリッドへフォーカスしてタブを奪うので、
+        # 全部が落ち着いてから最初のタブ(フォーム)へ戻す。
+        self.call_after_refresh(self._start_on_form)
+
+    def _start_on_form(self) -> None:
+        self.query_one(TabbedContent).active = "tab-form"
+        self.query_one(Form).fields[0].focus_input()
 
     def on_form_submitted(self, event: Form.Submitted) -> None:
         name = event.values["name"]
-        self.query_one("#form-result", Static).update(f"{name} さんを登録しました")
+        plan = event.values["plan"]
+        self.query_one("#form-result", Static).update(f"{name} さんを{plan}プランで登録しました")
 
 
 if __name__ == "__main__":
