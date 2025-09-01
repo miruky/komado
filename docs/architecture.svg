@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" role="img" aria-label="komadoのアーキテクチャ図">
+  <title>komadoのアーキテクチャ。アプリはFormとSheetを配置し、SheetはEngineに数式評価を委ねる。検証済みの値はメッセージでアプリへ届く。</title>
+  <style>
+    svg {
+      --ink: #1f2328;
+      --accent: #2f9e6e;
+      color: var(--ink);
+    }
+    @media (prefers-color-scheme: dark) {
+      svg { --ink: #e6edf3; }
+    }
+    .box { fill: none; stroke: currentColor; stroke-width: 1.5; }
+    .accent-box { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .label { font: 600 15px "Hiragino Sans", "Noto Sans JP", sans-serif; fill: currentColor; }
+    .note { font: 12px "Hiragino Sans", "Noto Sans JP", sans-serif; fill: currentColor; opacity: 0.65; }
+    .flow { stroke: currentColor; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+    .msg { stroke: var(--accent); stroke-width: 1.5; fill: none; marker-end: url(#arrow-accent); stroke-dasharray: 5 4; }
+    .msg-label { font: 12px "SF Mono", Menlo, monospace; fill: var(--accent); }
+    .mono { font: 12px "SF Mono", Menlo, monospace; fill: currentColor; opacity: 0.8; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#2f9e6e"/>
+    </marker>
+  </defs>
+
+  <rect x="40" y="30" width="680" height="70" rx="8" class="box"/>
+  <text x="60" y="58" class="label">利用側の Textual アプリ</text>
+  <text x="60" y="80" class="note">compose() で Form / Sheet を配置し、メッセージハンドラで結果を受け取る</text>
+
+  <rect x="60" y="160" width="300" height="150" rx="8" class="box"/>
+  <text x="80" y="190" class="label">komado.form</text>
+  <text x="80" y="215" class="mono">Form(FormField, ..., rules=[...])</text>
+  <text x="80" y="240" class="note">フィールド検証は textual.validation を流用し、</text>
+  <text x="80" y="258" class="note">必須チェックとフィールド横断ルールを重ねる</text>
+  <text x="80" y="290" class="note">エラーは各入力欄の直下にインライン表示</text>
+
+  <rect x="420" y="160" width="280" height="150" rx="8" class="box"/>
+  <text x="440" y="190" class="label">komado.sheet</text>
+  <text x="440" y="215" class="mono">Sheet(rows, cols)</text>
+  <text x="440" y="240" class="note">DataTable をグリッド表示に使い、</text>
+  <text x="440" y="258" class="note">編集は上部の数式バーに集約する</text>
+
+  <rect x="440" y="340" width="240" height="60" rx="8" class="accent-box"/>
+  <text x="460" y="365" class="label">komado.formula.Engine</text>
+  <text x="460" y="385" class="note">数式の解析・評価・循環参照の検出</text>
+
+  <path d="M 180 100 L 180 160" class="flow"/>
+  <path d="M 540 100 L 540 160" class="flow"/>
+  <path d="M 560 310 L 560 340" class="flow"/>
+  <text x="572" y="332" class="note">評価を委譲</text>
+
+  <path d="M 320 160 C 340 130 360 115 380 103" class="msg"/>
+  <text x="240" y="140" class="msg-label">Form.Submitted</text>
+
+  <path d="M 660 160 C 680 130 690 115 700 103" class="msg"/>
+  <text x="570" y="140" class="msg-label">Sheet.CellChanged</text>
+</svg>
