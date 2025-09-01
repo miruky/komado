@@ -10,9 +10,10 @@ import csv
 import io
 from typing import ClassVar
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.coordinate import Coordinate
 from textual.message import Message
 from textual.widgets import DataTable, Input, Static
@@ -37,8 +38,19 @@ class Sheet(Vertical):
     Sheet {
         height: auto;
     }
-    Sheet > .komado-sheet-bar {
-        margin-bottom: 0;
+    Sheet > .komado-sheet-toolbar {
+        height: auto;
+    }
+    Sheet .komado-sheet-namebox {
+        width: 7;
+        height: 3;
+        content-align: center middle;
+        color: $text-muted;
+        background: $boost;
+        text-style: bold;
+    }
+    Sheet .komado-sheet-bar {
+        width: 1fr;
     }
     Sheet > DataTable {
         height: auto;
@@ -47,6 +59,7 @@ class Sheet(Vertical):
     Sheet > .komado-sheet-status {
         color: $text-muted;
         height: 1;
+        padding: 0 1;
     }
     """
 
@@ -71,12 +84,15 @@ class Sheet(Vertical):
         self.rows = rows
         self.cols = cols
         self.engine = Engine()
+        self._namebox = Static("", classes="komado-sheet-namebox")
         self._bar = Input(placeholder="値か =数式 を入力", classes="komado-sheet-bar")
         self._table = DataTable(cursor_type="cell", zebra_stripes=True)
         self._status = Static("", classes="komado-sheet-status")
 
     def compose(self) -> ComposeResult:
-        yield self._bar
+        with Horizontal(classes="komado-sheet-toolbar"):
+            yield self._namebox
+            yield self._bar
         yield self._table
         yield self._status
 
@@ -135,6 +151,18 @@ class Sheet(Vertical):
         self._sync_bar()
         self.post_message(self.CellChanged(self, ref, text, self.engine.display(ref)))
 
+    def _cell_renderable(self, ref: Ref) -> Text:
+        """セルの表示物。数値は右寄せ、エラーは赤、文字列は左寄せにする。
+
+        数値を右に揃えると桁が縦に並び、表として桁数が読み取りやすい。
+        """
+        value = self.engine.value(ref)
+        if isinstance(value, str):
+            if value.startswith("#"):
+                return Text(value, style="bold red", justify="right")
+            return Text(value)
+        return Text(self.engine.display(ref), justify="right")
+
     def _refresh_all(self) -> None:
         """数式の依存先を個別追跡せず、毎回全セルを再描画する。
 
@@ -145,16 +173,19 @@ class Sheet(Vertical):
             for col in range(self.cols):
                 self._table.update_cell_at(
                     Coordinate(row, col),
-                    self.engine.display((row, col)),
+                    self._cell_renderable((row, col)),
                     update_width=True,
                 )
 
     def _sync_bar(self) -> None:
         ref = self.cursor_ref
-        self._bar.value = self.engine.raw(ref)
-        value = self.engine.display(ref)
-        suffix = f" = {value}" if self.engine.raw(ref).startswith("=") else ""
-        self._status.update(f"{ref_to_a1(ref)}{suffix}")
+        raw = self.engine.raw(ref)
+        self._bar.value = raw
+        self._namebox.update(ref_to_a1(ref))
+        if raw.startswith("="):
+            self._status.update(f"={raw[1:]}  →  {self.engine.display(ref)}")
+        else:
+            self._status.update("")
 
     def on_data_table_cell_highlighted(self, event: DataTable.CellHighlighted) -> None:
         event.stop()
