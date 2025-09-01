@@ -142,7 +142,7 @@ class TestFunctions:
 
     def test_unknown_function(self):
         engine = Engine()
-        engine.set_cell("A1", "=MEDIAN(1, 2)")
+        engine.set_cell("A1", "=VLOOKUP(1, 2)")
         assert engine.value("A1") == "#NAME?"
 
     def test_error_propagates_through_range(self, engine):
@@ -199,6 +199,121 @@ class TestDisplay:
 
     def test_empty(self):
         assert Engine().display("A1") == ""
+
+
+class TestComparisons:
+    @pytest.mark.parametrize(
+        ("formula", "expected"),
+        [
+            ("=1<2", 1.0),
+            ("=2<1", 0.0),
+            ("=3=3", 1.0),
+            ("=3<>3", 0.0),
+            ("=2<>3", 1.0),
+            ("=3>=3", 1.0),
+            ("=4<=3", 0.0),
+            ("=1+1=2", 1.0),
+        ],
+    )
+    def test_compare(self, formula, expected):
+        engine = Engine()
+        engine.set_cell("A1", formula)
+        assert engine.value("A1") == expected
+
+    def test_compares_references(self):
+        engine = Engine()
+        engine.set_cell("A1", "10")
+        engine.set_cell("A2", "20")
+        engine.set_cell("B1", "=A1<A2")
+        assert engine.value("B1") == 1.0
+
+
+class TestIf:
+    def test_true_branch(self):
+        engine = Engine()
+        engine.set_cell("A1", "=IF(1<2, 10, 20)")
+        assert engine.value("A1") == 10.0
+
+    def test_false_branch(self):
+        engine = Engine()
+        engine.set_cell("A1", "=IF(1>2, 10, 20)")
+        assert engine.value("A1") == 20.0
+
+    def test_dead_branch_is_not_evaluated(self):
+        engine = Engine()
+        engine.set_cell("A1", "=IF(1=1, 5, 1/0)")
+        assert engine.value("A1") == 5.0
+
+    def test_nested(self):
+        engine = Engine()
+        engine.set_cell("A1", "5")
+        engine.set_cell("B1", "=IF(A1>=10, 2, IF(A1>=3, 1, 0))")
+        assert engine.value("B1") == 1.0
+
+    def test_wrong_arity(self):
+        engine = Engine()
+        engine.set_cell("A1", "=IF(1, 2)")
+        assert engine.value("A1") == "#ERROR!"
+
+
+class TestMoreFunctions:
+    @pytest.fixture
+    def engine(self):
+        engine = Engine()
+        for ref, val in [("A1", "10"), ("A2", "20"), ("A3", "30")]:
+            engine.set_cell(ref, val)
+        return engine
+
+    def test_median(self, engine):
+        engine.set_cell("B1", "=MEDIAN(A1:A3)")
+        assert engine.value("B1") == 20.0
+
+    def test_product(self, engine):
+        engine.set_cell("B1", "=PRODUCT(A1:A3)")
+        assert engine.value("B1") == 6000.0
+
+    def test_stdev(self, engine):
+        engine.set_cell("B1", "=STDEV(A1:A3)")
+        assert engine.value("B1") == 10.0
+
+    def test_stdev_needs_two_values(self):
+        engine = Engine()
+        engine.set_cell("A1", "5")
+        engine.set_cell("B1", "=STDEV(A1)")
+        assert engine.value("B1") == "#ERROR!"
+
+    @pytest.mark.parametrize(
+        ("formula", "expected"),
+        [
+            ("=SQRT(16)", 4.0),
+            ("=POWER(2, 10)", 1024.0),
+            ("=MOD(17, 5)", 2.0),
+            ("=FLOOR(3.7)", 3.0),
+            ("=CEIL(3.2)", 4.0),
+            ("=INT(-3.7)", -3.0),
+            ("=SIGN(-9)", -1.0),
+            ("=SIGN(0)", 0.0),
+        ],
+    )
+    def test_scalars(self, formula, expected):
+        engine = Engine()
+        engine.set_cell("A1", formula)
+        assert engine.value("A1") == expected
+
+    def test_sqrt_negative_is_error(self):
+        engine = Engine()
+        engine.set_cell("A1", "=SQRT(-1)")
+        assert engine.value("A1") == "#ERROR!"
+
+    def test_mod_by_zero(self):
+        engine = Engine()
+        engine.set_cell("A1", "=MOD(5, 0)")
+        assert engine.value("A1") == "#DIV/0!"
+
+    def test_power_complex_is_error(self):
+        engine = Engine()
+        engine.set_cell("A1", "=POWER(-8, 0.5)")
+        assert engine.value("A1") == "#ERROR!"
 
 
 class TestRecalculation:
