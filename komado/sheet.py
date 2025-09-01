@@ -36,6 +36,8 @@ class Sheet(Vertical):
 
     BINDINGS: ClassVar = [
         Binding("backspace,delete", "clear_cell", "セルを消去", show=True),
+        Binding("ctrl+z", "undo", "元に戻す", show=True),
+        Binding("ctrl+y", "redo", "やり直す", show=True),
         Binding("escape", "focus_grid", "グリッドへ戻る", show=False),
     ]
 
@@ -95,6 +97,9 @@ class Sheet(Vertical):
         self._bar = Input(placeholder="値か =数式 を入力", classes="komado-sheet-bar")
         self._table = DataTable(cursor_type="cell", zebra_stripes=True)
         self._status = Static("", classes="komado-sheet-status")
+        # 対話編集の履歴。(セル, 変更前の生テキスト, 変更後の生テキスト)。
+        self._undo: list[tuple[Ref, str, str]] = []
+        self._redo: list[tuple[Ref, str, str]] = []
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="komado-sheet-toolbar"):
@@ -118,8 +123,12 @@ class Sheet(Vertical):
         return (coordinate.row, coordinate.column)
 
     def set_cell(self, ref: Ref | str, text: str) -> None:
-        """APIからの書き込み。マウント済みなら表示も更新する。"""
+        """APIからの書き込み。マウント済みなら表示も更新する。
+
+        プログラムからの変更は新しい基準とみなし、対話編集の履歴は捨てる。
+        """
         self.engine.set_cell(ref, text)
+        self._clear_history()
         if self._table.row_count:
             self._refresh_all()
             self._sync_bar()
@@ -129,6 +138,22 @@ class Sheet(Vertical):
         for dr, row in enumerate(rows):
             for dc, text in enumerate(row):
                 self.engine.set_cell((origin[0] + dr, origin[1] + dc), text)
+        self._clear_history()
+        if self._table.row_count:
+            self._refresh_all()
+            self._sync_bar()
+
+    def load_csv(self, text: str, *, origin: Ref = (0, 0)) -> None:
+        """CSV文字列を取り込む。既存の内容は消してから置き換える。"""
+        rows = list(csv.reader(io.StringIO(text)))
+        self.clear()
+        self.load_rows(rows, origin=origin)
+
+    def clear(self) -> None:
+        """すべてのセルを空にし、履歴も捨てる。"""
+        for ref in list(self.engine.refs()):
+            self.engine.set_cell(ref, "")
+        self._clear_history()
         if self._table.row_count:
             self._refresh_all()
             self._sync_bar()
@@ -150,15 +175,53 @@ class Sheet(Vertical):
         if self._table.has_focus:
             self._commit(self.cursor_ref, "")
 
+    def action_undo(self) -> None:
+        if not self._undo:
+            return
+        ref, old, new = self._undo.pop()
+        self._redo.append((ref, old, new))
+        self._apply_history(ref, old)
+
+    def action_redo(self) -> None:
+        if not self._redo:
+            return
+        ref, old, new = self._redo.pop()
+        self._undo.append((ref, old, new))
+        self._apply_history(ref, new)
+
     def action_focus_grid(self) -> None:
         self._table.focus()
 
     def _commit(self, ref: Ref, text: str) -> None:
+        old = self.engine.raw(ref)
         self.engine.set_cell(ref, text)
+        new = self.engine.raw(ref)
+        if new != old:
+            self._undo.append((ref, old, new))
+            self._redo.clear()
         self._refresh_all()
         self._sync_bar()
         motion.flash(self._namebox, _ACCENT)
-        self.post_message(self.CellChanged(self, ref, text, self.engine.display(ref)))
+        self.post_message(self.CellChanged(self, ref, new, self.engine.display(ref)))
+
+    def _apply_history(self, ref: Ref, raw: str) -> None:
+        """履歴の1手をセルへ反映し、その位置へカーソルを移して知らせる。"""
+        self.engine.set_cell(ref, raw)
+        self._move_cursor(ref)
+        self._refresh_all()
+        self._sync_bar()
+        motion.flash(self._namebox, _ACCENT)
+        self.post_message(self.CellChanged(self, ref, raw, self.engine.display(ref)))
+
+    def _move_cursor(self, ref: Ref) -> None:
+        row = min(max(ref[0], 0), self.rows - 1)
+        col = min(max(ref[1], 0), self.cols - 1)
+        self._table.cursor_coordinate = Coordinate(row, col)
+        self._table.focus()
+
+    def _clear_history(self) -> None:
+        self._undo.clear()
+        self._redo.clear()
 
     def _cell_renderable(self, ref: Ref) -> Text:
         """セルの表示物。数値は右寄せ、エラーは赤、文字列は左寄せにする。
