@@ -1,6 +1,7 @@
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.coordinate import Coordinate
-from textual.widgets import DataTable, Input
+from textual.widgets import DataTable, Input, Static
 
 from komado import Sheet
 
@@ -117,3 +118,44 @@ async def test_to_csv_empty_sheet():
     app = SheetApp()
     async with app.run_test():
         assert app.query_one(Sheet).to_csv() == ""
+
+
+def cell_renderable(sheet: Sheet, row: int, col: int) -> Text:
+    cell = sheet.query_one(DataTable).get_cell_at(Coordinate(row, col))
+    assert isinstance(cell, Text)
+    return cell
+
+
+async def test_number_cell_is_right_aligned():
+    app = SheetApp()
+    async with app.run_test():
+        sheet = app.query_one(Sheet)
+        sheet.set_cell("A1", "100")
+        assert cell_renderable(sheet, 0, 0).justify == "right"
+
+
+async def test_text_cell_is_not_right_aligned():
+    app = SheetApp()
+    async with app.run_test():
+        sheet = app.query_one(Sheet)
+        sheet.set_cell("A1", "費目")
+        assert cell_renderable(sheet, 0, 0).justify != "right"
+
+
+async def test_error_cell_is_red_but_plain_text_intact():
+    app = SheetApp()
+    async with app.run_test():
+        sheet = app.query_one(Sheet)
+        sheet.set_cell("A1", "=1/0")
+        cell = cell_renderable(sheet, 0, 0)
+        assert str(cell) == "#DIV/0!"
+        assert "red" in str(cell.style)
+
+
+async def test_namebox_tracks_cursor():
+    app = SheetApp()
+    async with app.run_test() as pilot:
+        sheet = app.query_one(Sheet)
+        await pilot.press("right", "down")
+        namebox = sheet.query_one(".komado-sheet-namebox", Static)
+        assert str(namebox.render()) == "B2"
