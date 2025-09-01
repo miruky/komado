@@ -16,6 +16,7 @@ from collections.abc import Callable
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.markup import escape
 from textual.message import Message
 from textual.validation import Validator
 from textual.widget import Widget
@@ -92,8 +93,10 @@ class Field(Vertical):
         raise NotImplementedError
 
     def compose(self) -> ComposeResult:
+        # ラベルは利用側が決める任意の文字列なので、必須マーカーを足す前に
+        # マークアップとして解釈されないようエスケープする([kg] などが消えない)。
         marker = " [$text-error]*[/]" if self.required else ""
-        yield Label(f"{self.label_text}{marker}", classes="komado-field-label")
+        yield Label(f"{escape(self.label_text)}{marker}", classes="komado-field-label")
         yield self._control
         yield self._error
 
