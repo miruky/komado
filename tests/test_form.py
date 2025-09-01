@@ -2,6 +2,7 @@ import re
 
 from textual.app import App, ComposeResult
 from textual.validation import Integer, Regex
+from textual.widgets import Label
 
 from komado import Form, FormField
 
@@ -153,3 +154,15 @@ async def test_values_property_collects_all_fields():
         form = app.query_one(Form)
         fill(form, VALID)
         assert form.values == VALID
+
+
+async def test_required_field_label_has_marker():
+    app = FormApp()
+    async with app.run_test():
+        form = app.query_one(Form)
+        required = form.fields[0]  # 名前(required=True)
+        optional = form.fields[2]  # 年齢(required=False)
+        required_label = required.query_one(".komado-field-label", Label)
+        optional_label = optional.query_one(".komado-field-label", Label)
+        assert "*" in str(required_label.render())
+        assert "*" not in str(optional_label.render())
