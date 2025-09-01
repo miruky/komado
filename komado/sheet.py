@@ -13,12 +13,17 @@ from typing import ClassVar
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
+from textual.color import Color
 from textual.containers import Horizontal, Vertical
 from textual.coordinate import Coordinate
 from textual.message import Message
 from textual.widgets import DataTable, Input, Static
 
+from . import motion
 from .formula import Engine, Ref, ref_to_a1
+
+_ACCENT = Color.parse("#2f9e6e")
+"""コミットの明滅に使う差し色。ロゴ・図と同じ緑。"""
 
 
 class Sheet(Vertical):
@@ -78,9 +83,11 @@ class Sheet(Vertical):
         rows: int = 20,
         cols: int = 8,
         *,
+        motion: bool = True,
         id: str | None = None,
     ) -> None:
         super().__init__(id=id)
+        self.komado_motion = motion
         self.rows = rows
         self.cols = cols
         self.engine = Engine()
@@ -103,6 +110,7 @@ class Sheet(Vertical):
         self._refresh_all()
         self._sync_bar()
         self._table.focus()
+        motion.reveal(self)
 
     @property
     def cursor_ref(self) -> Ref:
@@ -149,6 +157,7 @@ class Sheet(Vertical):
         self.engine.set_cell(ref, text)
         self._refresh_all()
         self._sync_bar()
+        motion.flash(self._namebox, _ACCENT)
         self.post_message(self.CellChanged(self, ref, text, self.engine.display(ref)))
 
     def _cell_renderable(self, ref: Ref) -> Text:
