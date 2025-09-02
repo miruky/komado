@@ -41,7 +41,7 @@ komadoはこの2つの隙間を埋める。`Form` はFormField群の一括検証
 ```python
 from textual.app import App, ComposeResult
 from textual.validation import Integer
-from komado import Form, FormField
+from komado import Form, FormField, SelectField, SwitchField
 
 
 def passwords_match(values: dict[str, str]) -> str | None:
@@ -55,6 +55,8 @@ class SettingsApp(App):
         yield Form(
             FormField("ユーザー名", "name", required=True),
             FormField("年齢", "age", validators=[Integer(minimum=0)]),
+            SelectField("プラン", "plan", ["無料", "有料", "法人"], required=True),
+            SwitchField("メール通知", "notify", value=True),
             FormField("パスワード", "password", required=True, password=True),
             FormField("パスワード(確認)", "confirm", required=True, password=True),
             rules=[passwords_match],
@@ -62,11 +64,13 @@ class SettingsApp(App):
         )
 
     def on_form_submitted(self, event: Form.Submitted) -> None:
-        # event.values == {"name": "...", "age": "...", "password": "...", "confirm": "..."}
+        # event.values == {"name": "...", "plan": "有料", "notify": "true", ...}
         self.exit(event.values)
 ```
 
 検証は入力のたびに走り、失敗メッセージは入力欄の直下に出る。送信ボタンか入力欄でのEnterで `submit()` が呼ばれ、全項目とフィールド横断ルールを通過したときだけ `Form.Submitted` が飛ぶ。失敗時は最初の問題フィールドへフォーカスが移る。
+
+フィールドは3種類ある。`FormField` は1行テキスト、`SelectField` は選択肢からの単一選択(未選択は空文字列)、`SwitchField` はオン・オフ(`"true"` / `"false"`)。どれも値は文字列で揃うので、`Form.values` は名前から値への素直な辞書になる。値をまとめて入れる `Form.set_values({...})` と、初期状態へ戻す `Form.reset()` も用意している。
 
 ### 表計算グリッド
 
@@ -92,7 +96,7 @@ class BudgetApp(App):
         self.log(f"{event.ref} = {event.display}")
 ```
 
-矢印キーでセルを移動し、Enterで数式バーにフォーカスして編集、もう一度Enterで確定する。DeleteまたはBackspaceでセルを消去する。`to_csv()` で評価後の値をCSV文字列として取り出せる。
+矢印キーでセルを移動し、Enterで数式バーにフォーカスして編集、もう一度Enterで確定する。DeleteまたはBackspaceでセルを消去する。対話編集はCtrl+Zで元に戻し、Ctrl+Yでやり直せる(履歴は変更したセルへカーソルを戻す)。CSVは `to_csv()` で書き出し、`load_csv(text)` で取り込む(取り込みは既存の内容を置き換える)。`clear()` で全セルを空にできる。
 
 ### 数式エンジン単体
 
@@ -109,9 +113,11 @@ engine.value("B1")    # 42.0
 engine.display("B1")  # "42"
 engine.set_cell("C1", "=C1")
 engine.value("C1")    # "#CYCLE!"
+engine.set_cell("D1", "=IF(B1 >= 40, 1, 0)")
+engine.value("D1")    # 1.0  (比較とIF。偽の枝は評価しないので除算エラーを避けられる)
 ```
 
-対応する数式は四則演算・括弧・単項マイナス・セル参照・範囲、関数は `SUM` `AVERAGE` `MIN` `MAX` `COUNT` `ABS` `ROUND`。エラーは `#DIV/0!` `#CYCLE!` `#VALUE!` `#NAME?` `#REF!` `#ERROR!` のコードでセルに表示される。文字列セルを参照する算術は `#VALUE!`、範囲集計では文字列と空セルは読み飛ばす。IFや文字列関数、セルの書式は対応していない。
+対応する数式は四則演算・括弧・単項マイナス・セル参照・範囲・比較(`= <> < > <= >=`、真は1・偽は0)。関数は集計の `SUM` `AVERAGE` `MIN` `MAX` `COUNT` `MEDIAN` `PRODUCT` `STDEV`、要素ごとの `ABS` `ROUND` `SQRT` `POWER` `MOD` `FLOOR` `CEIL` `INT` `SIGN`、そして条件分岐の `IF(条件, 真のとき, 偽のとき)`。エラーは `#DIV/0!` `#CYCLE!` `#VALUE!` `#NAME?` `#REF!` `#ERROR!` のコードでセルに表示される。文字列セルを参照する算術は `#VALUE!`、範囲集計では文字列と空セルは読み飛ばす。文字列を返す関数やセルの書式設定には対応していない。
 
 ### デモ
 
@@ -124,9 +130,10 @@ python -m komado.demo
 ## プロジェクト構成
 
 - `komado/`
-  - `form.py` — `FormField` と `Form`。検証・エラー表示・送信制御
-  - `sheet.py` — `Sheet`。数式バー+DataTableのグリッド
+  - `form.py` — `Field`(基底)と `FormField` / `SelectField` / `SwitchField`、`Form`。検証・エラー表示・送信制御
+  - `sheet.py` — `Sheet`。数式バー+DataTableのグリッド、undo/redoとCSV入出力
   - `formula.py` — `Engine`。数式の解析と評価(Textual非依存)
+  - `motion.py` — アニメーションレベルを尊重するモーション補助
   - `demo.py` — ショーケースアプリ
 - `tests/` — 数式エンジンの単体テストとPilotによるウィジェット操作テスト
 - `docs/` — ロゴとアーキテクチャ図
@@ -155,7 +162,9 @@ make lint   # ruff check + ruff format --check
 
 **数式エンジンはUIから切り離す。** `Engine` は文字列を受けて値を返すだけの純粋なPythonで、テストの大半はターミナルエミュレーションなしで走る。ウィジェット側は「編集のたびに全セルを再描画する」素朴な戦略で、依存グラフの差分更新はしない。グリッドは高々数百セルで、メモ化により再計算はセルあたり1回で済むからだ。
 
-**書ける範囲を最初から区切る。** スプレッドシートの完全再現は狙わない。数式は集計に必要な最小限の語彙に留め、できないこと(IF、文字列操作、書式)はREADMEに明記する。
+**書ける範囲を最初から区切る。** スプレッドシートの完全再現は狙わない。数式は集計と条件分岐に必要な語彙に絞り、対応しないこと(文字列を返す関数、セルの書式)はREADMEに明記する。
+
+**動きは添えるが、止められるようにする。** 入場のフェードやセル確定の明滅といったモーションは、Textualのアニメーションレベル(`TEXTUAL_ANIMATIONS=none` で無効化、`prefers-reduced-motion` に相当)を尊重する。各ウィジェットに `motion=False` も渡せる。位置を動かすアニメーションは操作の妨げになるため使わない。
 
 ## ライセンス
 
