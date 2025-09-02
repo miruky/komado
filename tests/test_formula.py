@@ -355,3 +355,42 @@ class TestRecalculation:
         assert engine.value("A1") == "#CYCLE!"
         engine.set_cell("B1", "5")
         assert engine.value("A1") == 5.0
+
+
+class TestLogical:
+    def test_and(self):
+        engine = Engine()
+        engine.set_cell("A1", "=AND(1>0, 2>1)")
+        engine.set_cell("A2", "=AND(1>0, 2<1)")
+        assert engine.value("A1") == 1.0
+        assert engine.value("A2") == 0.0
+
+    def test_or(self):
+        engine = Engine()
+        engine.set_cell("A1", "=OR(1<0, 2>1)")
+        engine.set_cell("A2", "=OR(1<0, 2<1)")
+        assert engine.value("A1") == 1.0
+        assert engine.value("A2") == 0.0
+
+    def test_not(self):
+        engine = Engine()
+        engine.set_cell("A1", "=NOT(1>2)")
+        engine.set_cell("A2", "=NOT(5)")
+        assert engine.value("A1") == 1.0
+        assert engine.value("A2") == 0.0
+
+    def test_not_requires_one_arg(self):
+        engine = Engine()
+        engine.set_cell("A1", "=NOT(1, 2)")
+        assert engine.value("A1") == "#ERROR!"
+
+    def test_compose_with_if(self):
+        engine = Engine()
+        engine.set_cell("A1", "8")
+        engine.set_cell("B1", "=IF(AND(A1>=5, A1<=10), 1, 0)")
+        assert engine.value("B1") == 1.0
+
+    def test_empty_args_error(self):
+        engine = Engine()
+        engine.set_cell("A1", "=AND()")
+        assert engine.value("A1") == "#ERROR!"

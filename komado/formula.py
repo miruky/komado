@@ -224,7 +224,21 @@ _SCALARS: dict[str, Callable[[list[float]], float]] = {
     "SIGN": lambda xs: float((xs[0] > 0) - (xs[0] < 0)),
 }
 
-FUNCTION_NAMES = tuple(sorted({"IF", *_AGGREGATES, *_SCALARS}))
+
+def _fn_not(values: list[float]) -> float:
+    if len(values) != 1:
+        raise FormulaError("#ERROR!", "NOT の引数は1個")
+    return 1.0 if values[0] == 0 else 0.0
+
+
+# 真偽(0以外=真)を畳む論理関数。IF と組み合わせて条件を組み立てる。
+_LOGICALS: dict[str, Callable[[list[float]], float]] = {
+    "AND": lambda xs: 1.0 if all(x != 0 for x in xs) else 0.0,
+    "OR": lambda xs: 1.0 if any(x != 0 for x in xs) else 0.0,
+    "NOT": _fn_not,
+}
+
+FUNCTION_NAMES = tuple(sorted({"IF", *_AGGREGATES, *_SCALARS, *_LOGICALS}))
 
 
 def _apply(name: str, fn: Callable[[list[float]], float], values: list[float]) -> float:
@@ -394,4 +408,8 @@ class Engine:
             if not args:
                 raise FormulaError("#ERROR!", f"{name} に引数がない")
             return _apply(name, _SCALARS[name], [self._eval_node(arg) for arg in args])
+        if name in _LOGICALS:
+            if not args:
+                raise FormulaError("#ERROR!", f"{name} に引数がない")
+            return _apply(name, _LOGICALS[name], [self._eval_node(arg) for arg in args])
         raise FormulaError("#NAME?", f"未知の関数: {name}")
