@@ -94,7 +94,9 @@ class Sheet(Vertical):
         self.cols = cols
         self.engine = Engine()
         self._namebox = Static("", classes="komado-sheet-namebox")
+        self._namebox.tooltip = "選択中のセル"
         self._bar = Input(placeholder="値か =数式 を入力", classes="komado-sheet-bar")
+        self._bar.tooltip = "Enterで確定。= で始めると数式(例: =SUM(A1:A3))"
         self._table = DataTable(cursor_type="cell", zebra_stripes=True)
         self._status = Static("", classes="komado-sheet-status")
         # 対話編集の履歴。(セル, 変更前の生テキスト, 変更後の生テキスト)。

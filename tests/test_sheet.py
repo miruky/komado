@@ -159,3 +159,60 @@ async def test_namebox_tracks_cursor():
         await pilot.press("right", "down")
         namebox = sheet.query_one(".komado-sheet-namebox", Static)
         assert str(namebox.render()) == "B2"
+
+
+async def test_undo_and_redo_roundtrip():
+    app = SheetApp()
+    async with app.run_test() as pilot:
+        sheet = app.query_one(Sheet)
+        await pilot.press("enter", *"10", "enter")  # A1=10
+        await pilot.press("enter", *"20", "enter")  # A2=20
+        await pilot.press("ctrl+z")
+        assert cell_text(sheet, 1, 0) == ""
+        assert sheet.cursor_ref == (1, 0)
+        await pilot.press("ctrl+z")
+        assert cell_text(sheet, 0, 0) == ""
+        await pilot.press("ctrl+y")
+        assert cell_text(sheet, 0, 0) == "10"
+
+
+async def test_redo_is_dropped_after_new_edit():
+    app = SheetApp()
+    async with app.run_test() as pilot:
+        sheet = app.query_one(Sheet)
+        await pilot.press("enter", *"10", "enter")
+        await pilot.press("ctrl+z")
+        await pilot.press("enter", *"99", "enter")  # 新しい編集でredo破棄
+        await pilot.press("ctrl+y")
+        assert cell_text(sheet, 0, 0) == "99"
+
+
+async def test_load_csv_replaces_content():
+    app = SheetApp()
+    async with app.run_test():
+        sheet = app.query_one(Sheet)
+        sheet.set_cell("D4", "残骸")
+        sheet.load_csv("品,数\nりんご,3\n合計,=B2\n")
+        assert cell_text(sheet, 0, 0) == "品"
+        assert cell_text(sheet, 2, 1) == "3"
+        assert cell_text(sheet, 3, 3) == ""  # 既存の D4 は消える
+
+
+async def test_load_csv_clears_undo_history():
+    app = SheetApp()
+    async with app.run_test() as pilot:
+        sheet = app.query_one(Sheet)
+        await pilot.press("enter", *"5", "enter")
+        sheet.load_csv("a,b\n1,2\n")
+        await pilot.press("ctrl+z")  # 履歴が消えているので何も起きない
+        assert cell_text(sheet, 0, 0) == "a"
+
+
+async def test_clear_empties_sheet():
+    app = SheetApp()
+    async with app.run_test():
+        sheet = app.query_one(Sheet)
+        sheet.load_rows([["1", "2"], ["3", "4"]])
+        sheet.clear()
+        assert cell_text(sheet, 0, 0) == ""
+        assert sheet.engine.refs() == set()
