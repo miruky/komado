@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "komado"
-version = "0.1.0"
+version = "0.2.0"
 description = "Textual向けのTUI部品集。フォームバリデーションや表計算ウィジェットを提供する"
 readme = "README.md"
 license = { file = "LICENSE" }

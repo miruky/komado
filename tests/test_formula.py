@@ -316,6 +316,29 @@ class TestMoreFunctions:
         assert engine.value("A1") == "#ERROR!"
 
 
+class TestEdges:
+    def test_deeply_nested_if(self):
+        engine = Engine()
+        engine.set_cell("A1", "3")
+        engine.set_cell("B1", "=IF(A1=1,10,IF(A1=2,20,IF(A1=3,30,0)))")
+        assert engine.value("B1") == 30.0
+
+    def test_whitespace_heavy_formula(self):
+        engine = Engine()
+        engine.set_cell("A1", "=  SUM ( 1 , 2 , 3 )  ")
+        assert engine.value("A1") == 6.0
+
+    def test_bare_equals_is_error(self):
+        engine = Engine()
+        engine.set_cell("A1", "=")
+        assert engine.value("A1") == "#ERROR!"
+
+    def test_comparison_inside_arithmetic(self):
+        engine = Engine()
+        engine.set_cell("A1", "=(2>1)+(3>5)")
+        assert engine.value("A1") == 1.0
+
+
 class TestRecalculation:
     def test_dependents_update_after_set(self):
         engine = Engine()
