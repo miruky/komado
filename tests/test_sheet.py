@@ -1,9 +1,10 @@
+import pytest
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.coordinate import Coordinate
 from textual.widgets import DataTable, Input, Static
 
-from komado import Sheet
+from komado import FormulaError, Sheet
 
 
 class SheetApp(App):
@@ -216,3 +217,55 @@ async def test_clear_empties_sheet():
         sheet.clear()
         assert cell_text(sheet, 0, 0) == ""
         assert sheet.engine.refs() == set()
+
+
+async def test_undo_redo_at_boundaries_are_noops():
+    app = SheetApp()
+    async with app.run_test() as pilot:
+        sheet = app.query_one(Sheet)
+        await pilot.press("ctrl+z")
+        await pilot.press("ctrl+y")
+        assert cell_text(sheet, 0, 0) == ""
+
+
+async def test_load_csv_handles_ragged_and_empty_rows():
+    app = SheetApp()
+    async with app.run_test():
+        sheet = app.query_one(Sheet)
+        sheet.load_csv("a,b,c\n1\n\n4,5\n")
+        assert cell_text(sheet, 0, 0) == "a"
+        assert cell_text(sheet, 1, 0) == "1"
+        assert cell_text(sheet, 1, 1) == ""
+        assert cell_text(sheet, 3, 1) == "5"
+
+
+async def test_load_csv_empty_clears_sheet():
+    app = SheetApp()
+    async with app.run_test():
+        sheet = app.query_one(Sheet)
+        sheet.set_cell("A1", "x")
+        sheet.load_csv("")
+        assert cell_text(sheet, 0, 0) == ""
+
+
+async def test_set_cell_with_invalid_ref_raises():
+    app = SheetApp()
+    async with app.run_test():
+        sheet = app.query_one(Sheet)
+        with pytest.raises(FormulaError):
+            sheet.set_cell("A0", "5")
+
+
+class BigSheetApp(App):
+    def compose(self) -> ComposeResult:
+        yield Sheet(rows=30, cols=12, motion=False)
+
+
+async def test_large_sheet_computes_far_corner():
+    app = BigSheetApp()
+    async with app.run_test() as pilot:
+        sheet = app.query_one(Sheet)
+        sheet.set_cell("A1", "1")
+        sheet.set_cell("L30", "=A1+1")
+        await pilot.pause()
+        assert cell_text(sheet, 29, 11) == "2"
