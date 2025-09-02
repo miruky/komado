@@ -1,8 +1,10 @@
+import re
+
 import komado
 
 
 def test_version():
-    assert komado.__version__ == "0.1.0"
+    assert re.fullmatch(r"\d+\.\d+\.\d+", komado.__version__)
 
 
 def test_public_api():
