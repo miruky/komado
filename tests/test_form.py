@@ -166,3 +166,36 @@ async def test_required_field_label_has_marker():
         optional_label = optional.query_one(".komado-field-label", Label)
         assert "*" in str(required_label.render())
         assert "*" not in str(optional_label.render())
+
+
+class BracketApp(App):
+    def compose(self) -> ComposeResult:
+        yield Form(FormField("重さ [kg]", "weight", required=True))
+
+
+async def test_label_with_brackets_is_preserved():
+    app = BracketApp()
+    async with app.run_test():
+        label = app.query_one(".komado-field-label", Label)
+        assert "[kg]" in str(label.render())
+
+
+class EmptyFormApp(App):
+    def __init__(self) -> None:
+        super().__init__()
+        self.submissions: list[dict[str, str]] = []
+
+    def compose(self) -> ComposeResult:
+        yield Form()
+
+    def on_form_submitted(self, event: Form.Submitted) -> None:
+        self.submissions.append(event.values)
+
+
+async def test_empty_form_submits_with_no_values():
+    app = EmptyFormApp()
+    async with app.run_test() as pilot:
+        form = app.query_one(Form)
+        assert form.submit() is True
+        await pilot.pause()
+        assert app.submissions == [{}]
