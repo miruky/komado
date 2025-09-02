@@ -11,6 +11,7 @@ from textual.widgets import Footer, Header, Static, TabbedContent, TabPane
 
 from .form import Form, FormField, SelectField, SwitchField
 from .sheet import Sheet
+from .theme import DEFAULT_THEME, register_themes
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -75,6 +76,9 @@ class DemoApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        # 既定の彩度の高い配色ではなく、komadoの落ち着いたテーマで見せる。
+        register_themes(self)
+        self.theme = DEFAULT_THEME
         sheet = self.query_one(Sheet)
         sheet.load_rows(
             [

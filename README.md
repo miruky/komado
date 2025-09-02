@@ -119,9 +119,24 @@ engine.value("D1")    # 1.0  (比較とIF。偽の枝は評価しないので除
 
 対応する数式は四則演算・括弧・単項マイナス・セル参照・範囲・比較(`= <> < > <= >=`、真は1・偽は0)。関数は集計の `SUM` `AVERAGE` `MIN` `MAX` `COUNT` `MEDIAN` `PRODUCT` `STDEV`、要素ごとの `ABS` `ROUND` `SQRT` `POWER` `MOD` `FLOOR` `CEIL` `INT` `SIGN`、そして条件分岐の `IF(条件, 真のとき, 偽のとき)`。エラーは `#DIV/0!` `#CYCLE!` `#VALUE!` `#NAME?` `#REF!` `#ERROR!` のコードでセルに表示される。文字列セルを参照する算術は `#VALUE!`、範囲集計では文字列と空セルは読み飛ばす。文字列を返す関数やセルの書式設定には対応していない。
 
+### テーマ
+
+Textual既定の彩度の高い配色を避けた、温度のある中立色＋苔色アクセント1色の昼・夜テーマを同梱する。意味トークン経由なのでウィジェットのスタイルには手を入れず差し替えられる。
+
+```python
+from komado import register_themes, DEFAULT_THEME
+
+class MyApp(App):
+    def on_mount(self) -> None:
+        register_themes(self)
+        self.theme = DEFAULT_THEME  # "komado-sumizome"(夜)。昼は "komado-washi"
+```
+
+登録後はコマンドパレット(Ctrl+P)からも切り替えられる。
+
 ### デモ
 
-両ウィジェットを試せるデモアプリを同梱している。
+両ウィジェットを試せるデモアプリを同梱している。テーマも適用済み。
 
 ```
 python -m komado.demo
@@ -134,6 +149,7 @@ python -m komado.demo
   - `sheet.py` — `Sheet`。数式バー+DataTableのグリッド、undo/redoとCSV入出力
   - `formula.py` — `Engine`。数式の解析と評価(Textual非依存)
   - `motion.py` — アニメーションレベルを尊重するモーション補助
+  - `theme.py` — 低彩度＋アクセント1色の昼・夜テーマ(`register_themes`)
   - `demo.py` — ショーケースアプリ
 - `tests/` — 数式エンジンの単体テストとPilotによるウィジェット操作テスト
 - `docs/` — ロゴとアーキテクチャ図
